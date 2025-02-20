@@ -89,6 +89,26 @@ class scanCallbacks : public NimBLEScanCallbacks
       serializeJson(shellyHT, Serial);
       Serial.println();
     }
+
+    if(BLEdata["name"] == "ESP" && serviceData.length() == 16)
+    {
+       JsonObject espHTP = sensorData.to<JsonObject>(); 
+
+       espHTP["name"] = "ESP32 HTP";
+       espHTP["mac"] = mac_adress;
+       espHTP["packet"] = hexStringToInt16(serviceData.substr(24, 8).c_str());
+      
+       String temp = String(hexStringToInt16(serviceData.substr(20, 4).c_str()));
+       espHTP["temperature_c"]= temp.substring(0, temp.length()-2) + '.' + temp.substring(temp.length()-2);
+ 
+       serializeJson(espHTP, Serial);
+       Serial.println();
+       /*
+       Serial.print(" [");
+       Serial.print(serviceData.c_str());
+       Serial.println("]");
+       */
+    }
   }
 
   void onScanEnd(const NimBLEScanResults& results, int reason) override 
