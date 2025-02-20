@@ -90,7 +90,7 @@ class scanCallbacks : public NimBLEScanCallbacks
       Serial.println();
     }
 
-    if(BLEdata["name"] == "ESP" && serviceData.length() == 16)
+    if(BLEdata["name"] == "ESP" && serviceData.length() == 32)
     {
        JsonObject espHTP = sensorData.to<JsonObject>(); 
 
