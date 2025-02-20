@@ -65,9 +65,9 @@ class scanCallbacks : public NimBLEScanCallbacks
     {
       JsonObject shellyHT = sensorData.to<JsonObject>();
 
+      shellyHT["mac"] = mac_adress;
       shellyHT["name"] = "ShellyBLU H&T";
       shellyHT["model"] = "SBHT-003C";
-      shellyHT["mac"] = mac_adress;
       shellyHT["packet"] = hexStringToInt16(serviceData.substr(4, 2).c_str());
       shellyHT["battery"] = hexStringToInt16(serviceData.substr(8, 2).c_str());
       shellyHT["humidity"] = hexStringToInt16(serviceData.substr(12, 2).c_str());
@@ -94,13 +94,16 @@ class scanCallbacks : public NimBLEScanCallbacks
     {
        JsonObject espHTP = sensorData.to<JsonObject>(); 
 
-       espHTP["name"] = "ESP32 HTP";
        espHTP["mac"] = mac_adress;
+       espHTP["name"] = "ESP32 HTP";
        espHTP["packet"] = hexStringToInt16(serviceData.substr(24, 8).c_str());
       
-       String temp = String(hexStringToInt16(serviceData.substr(20, 4).c_str()));
-       espHTP["temperature_c"]= temp.substring(0, temp.length()-2) + '.' + temp.substring(temp.length()-2);
- 
+       String t_str = String(hexStringToInt16(serviceData.substr(20, 4).c_str()));
+       t_str = t_str.substring(0, t_str.length()-2) + '.' + t_str.substring(t_str.length()-2);
+       if(t_str.length() == 3) t_str = "0" + t_str;
+       else if (t_str.length() == 4 && t_str[0] == '-') t_str.replace("-.", "-0.");
+       espHTP["temperature_c"] = t_str;
+
        serializeJson(espHTP, Serial);
        Serial.println();
        /*
