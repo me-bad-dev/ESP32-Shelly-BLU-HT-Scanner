@@ -1,17 +1,15 @@
 #include <Arduino.h>
 #include "ArduinoJson.h"
 #include "NimBLEDevice.h"
-#include "decoder.h"
-
-#define ARDUINOJSON_USE_LONG_LONG 1
 
 NimBLEScan* pBLEScan;
 
-TheengsDecoder decoder;
-
+JsonDocument bleScanData;
 JsonDocument sensorData;
 
-static constexpr uint32_t scanTimeMs = 10 * 1000; 
+static constexpr uint32_t scanTimeMs = 10000; 
+
+int16_t hexStringToInt16(const char* hexString);
 
 class scanCallbacks : public NimBLEScanCallbacks 
 {
@@ -19,7 +17,7 @@ class scanCallbacks : public NimBLEScanCallbacks
 
   void onResult(const NimBLEAdvertisedDevice* advertisedDevice) override 
   {
-    JsonObject BLEdata = sensorData.to<JsonObject>();
+    JsonObject BLEdata = bleScanData.to<JsonObject>();
   
     String mac_adress = advertisedDevice->getAddress().toString().c_str();
     mac_adress.toUpperCase();
@@ -60,24 +58,36 @@ class scanCallbacks : public NimBLEScanCallbacks
         BLEdata["servicedatauuid"] = (char*)serviceDatauuid.c_str();
       }
     }
-  
-    if (decoder.decodeBLEJson(BLEdata)) 
-    {
-      if(BLEdata["model_id"] == "SBHT-003C") 
-      {
-        BLEdata.remove("manufacturerdata");
-        BLEdata.remove("servicedata");
-        BLEdata.remove("servicedatauuid");
-        BLEdata.remove("type");
-        BLEdata.remove("cidc");
-        BLEdata.remove("acts");
-        BLEdata.remove("cont");
-        BLEdata.remove("track");
 
-        serializeJson(BLEdata, Serial);
-        Serial.println();
-      }
-      else return;
+    std::string serviceData = BLEdata["servicedata"];
+
+    if(BLEdata["name"] == "SBHT-003C" && serviceData.length() == 20 || serviceData.length() == 24)
+    {
+      JsonObject shellyHT = sensorData.to<JsonObject>();
+
+      shellyHT["name"] = "ShellyBLU H&T";
+      shellyHT["model"] = "SBHT-003C";
+      shellyHT["mac"] = mac_adress;
+      shellyHT["packet"] = hexStringToInt16(serviceData.substr(4, 2).c_str());
+      shellyHT["battery"] = hexStringToInt16(serviceData.substr(8, 2).c_str());
+      shellyHT["humidity"] = hexStringToInt16(serviceData.substr(12, 2).c_str());
+
+      uint8_t lowByte = (uint8_t)strtoul(serviceData.substr(serviceData.length()-4, 2).c_str(), NULL, 16);
+      uint8_t highByte = (uint8_t)strtoul(serviceData.substr(serviceData.length()-2, 2).c_str(), NULL, 16);
+      uint8_t bytes[] = {lowByte, highByte};
+      int16_t t_int = *(int16_t*)bytes; 
+      String t_str = String(t_int);
+      t_str = t_str.substring(0, t_str.length()-1) + '.' + t_str.substring(t_str.length()-1);
+      if(t_str.length() == 2) t_str = "0" + t_str;
+      else if (t_str.length() == 3 && t_str[0] == '-') t_str.replace("-.", "-0.");
+      shellyHT["temperature_c"] = t_str;
+      
+      if(serviceData.length() == 24 && serviceData.substr(16, 4) == "0145") shellyHT["button"] = 1;
+      else if (serviceData.length() == 24 && serviceData.substr(16, 4) == "fe45") shellyHT["button"] = 2;
+      else shellyHT["button"] = 0;
+
+      serializeJson(shellyHT, Serial);
+      Serial.println();
     }
   }
 
@@ -93,6 +103,13 @@ void setup()
   NimBLEDevice::init("ESP32-Scanner");    
   NimBLEScan* pBLEScan = NimBLEDevice::getScan(); 
 
+  /*
+    NimBLEAddress sensor1("AA:BB:CC:DD:EE:FF", BLE_ADDR_PUBLIC);
+    NimBLEDevice::whiteListAdd(sensor1);
+    
+    pBLEScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
+  */
+
   pBLEScan->setScanCallbacks(&scanCallbacks, false);
   pBLEScan->setActiveScan(true);         
   pBLEScan->setMaxResults(0);            
@@ -106,4 +123,9 @@ void setup()
 void loop() 
 {
   vTaskDelay(5);
+}
+
+int16_t hexStringToInt16(const char* hexString) {
+  char* endptr;
+  return (int16_t)strtol(hexString, &endptr, 16);
 }
