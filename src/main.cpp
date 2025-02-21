@@ -75,12 +75,9 @@ class scanCallbacks : public NimBLEScanCallbacks
       uint8_t lowByte = (uint8_t)strtoul(serviceData.substr(serviceData.length()-4, 2).c_str(), NULL, 16);
       uint8_t highByte = (uint8_t)strtoul(serviceData.substr(serviceData.length()-2, 2).c_str(), NULL, 16);
       uint8_t bytes[] = {lowByte, highByte};
-      int16_t t_int = *(int16_t*)bytes; 
-      String t_str = String(t_int);
+      String t_str = String(*(int16_t*)bytes);
       t_str = t_str.substring(0, t_str.length()-1) + '.' + t_str.substring(t_str.length()-1);
-      if(t_str.length() == 2) t_str = "0" + t_str;
-      else if (t_str.length() == 3 && t_str[0] == '-') t_str.replace("-.", "-0.");
-      shellyHT["temperature_c"] = t_str;
+      shellyHT["temperature_c"] = atof(t_str.c_str());
       
       if(serviceData.length() == 24 && serviceData.substr(16, 4) == "0145") shellyHT["button"] = 1;
       else if (serviceData.length() == 24 && serviceData.substr(16, 4) == "fe45") shellyHT["button"] = 2;
@@ -100,9 +97,7 @@ class scanCallbacks : public NimBLEScanCallbacks
       
        String t_str = String(hexStringToInt16(serviceData.substr(20, 4).c_str()));
        t_str = t_str.substring(0, t_str.length()-2) + '.' + t_str.substring(t_str.length()-2);
-       if(t_str.length() == 3) t_str = "0" + t_str;
-       else if (t_str.length() == 4 && t_str[0] == '-') t_str.replace("-.", "-0.");
-       espHTP["temperature_c"] = t_str;
+       espHTP["temperature_c"] = atof(t_str.c_str());
 
        serializeJson(espHTP, Serial);
        Serial.println();
@@ -145,7 +140,7 @@ void setup()
 
 void loop() 
 {
-  vTaskDelay(5);
+  vTaskDelay(5000);
 }
 
 int16_t hexStringToInt16(const char* hexString) {
