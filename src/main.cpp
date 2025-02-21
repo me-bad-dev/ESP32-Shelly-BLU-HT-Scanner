@@ -9,8 +9,6 @@ JsonDocument sensorData;
 
 static constexpr uint32_t scanTimeMs = 10000; 
 
-int16_t hexStringToInt16(const char* hexString);
-
 class scanCallbacks : public NimBLEScanCallbacks 
 {
   void onDiscovered(const NimBLEAdvertisedDevice* advertisedDevice) override { }
@@ -68,16 +66,16 @@ class scanCallbacks : public NimBLEScanCallbacks
       shellyHT["mac"] = mac_adress;
       shellyHT["name"] = "ShellyBLU H&T";
       shellyHT["model"] = "SBHT-003C";
-      shellyHT["packet"] = hexStringToInt16(serviceData.substr(4, 2).c_str());
-      shellyHT["battery"] = hexStringToInt16(serviceData.substr(8, 2).c_str());
-      shellyHT["humidity"] = hexStringToInt16(serviceData.substr(12, 2).c_str());
+      shellyHT["packet"] = (uint8_t)strtoul(serviceData.substr(4, 2).c_str(), NULL, 16);
+      shellyHT["battery"] = (uint8_t)strtoul(serviceData.substr(8, 2).c_str(), NULL, 16);
+      shellyHT["humidity"] = (uint8_t)strtoul(serviceData.substr(12, 2).c_str(), NULL, 16);
 
       uint8_t lowByte = (uint8_t)strtoul(serviceData.substr(serviceData.length()-4, 2).c_str(), NULL, 16);
       uint8_t highByte = (uint8_t)strtoul(serviceData.substr(serviceData.length()-2, 2).c_str(), NULL, 16);
       uint8_t bytes[] = {lowByte, highByte};
       String t_str = String(*(int16_t*)bytes);
-      t_str = t_str.substring(0, t_str.length()-1) + '.' + t_str.substring(t_str.length()-1);
-      shellyHT["temperature_c"] = atof(t_str.c_str());
+      int16_t temp_c = (int16_t)strtol(t_str.c_str(), NULL, 16);
+      shellyHT["temperature_c"] = (float)temp_c/100;
       
       if(serviceData.length() == 24 && serviceData.substr(16, 4) == "0145") shellyHT["button"] = 1;
       else if (serviceData.length() == 24 && serviceData.substr(16, 4) == "fe45") shellyHT["button"] = 2;
@@ -89,23 +87,28 @@ class scanCallbacks : public NimBLEScanCallbacks
 
     if(BLEdata["name"] == "ESP" && serviceData.length() == 32)
     {
-       JsonObject espHTP = sensorData.to<JsonObject>(); 
+      JsonObject espHTP = sensorData.to<JsonObject>(); 
 
-       espHTP["mac"] = mac_adress;
-       espHTP["name"] = "ESP32 HTP";
-       espHTP["packet"] = hexStringToInt16(serviceData.substr(24, 8).c_str());
-      
-       String t_str = String(hexStringToInt16(serviceData.substr(20, 4).c_str()));
-       t_str = t_str.substring(0, t_str.length()-2) + '.' + t_str.substring(t_str.length()-2);
-       espHTP["temperature_c"] = atof(t_str.c_str());
+      espHTP["mac"] = mac_adress;
+      espHTP["name"] = "ESP32 HTP";
+  
+      uint32_t pressure = strtoul(serviceData.substr(8, 8).c_str(), NULL, 16);
+      espHTP["pressure"] = (float)pressure/100;
 
-       serializeJson(espHTP, Serial);
-       Serial.println();
-       /*
-       Serial.print(" [");
-       Serial.print(serviceData.c_str());
-       Serial.println("]");
-       */
+      int16_t humidity = (int16_t)strtol(serviceData.substr(16, 4).c_str(), NULL, 16);
+      espHTP["humidity"] = (float)humidity/100;
+
+      int16_t temp_c = (int16_t)strtol(serviceData.substr(20, 4).c_str(), NULL, 16);
+      espHTP["temp_c"] = (float)temp_c/100;
+
+      espHTP["temp_f"] = (temp_c * 18 + 32000)/ (float)1000;
+
+      espHTP["packet"] = strtoul(serviceData.substr(24, 8).c_str(), NULL, 16);
+
+      espHTP["service_data"] = serviceData;
+
+      serializeJson(espHTP, Serial);
+      Serial.println( );       
     }
   }
 
@@ -141,9 +144,4 @@ void setup()
 void loop() 
 {
   vTaskDelay(5000);
-}
-
-int16_t hexStringToInt16(const char* hexString) {
-  char* endptr;
-  return (int16_t)strtol(hexString, &endptr, 16);
 }
